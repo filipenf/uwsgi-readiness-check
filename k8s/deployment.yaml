@@ -1,0 +1,78 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: uwsgi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: testrequest
+  namespace: uwsgi
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: testrequest
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        name: testrequest
+    spec:
+      containers:
+        - name: request
+          image: python:3.10.1-slim
+          command:
+            - python3
+            - /data/tests/request.py
+      restartPolicy: Always
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: uwsgi-test
+  namespace: uwsgi
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: uwsgi-test
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        name: uwsgi-test
+    spec:
+      containers:
+        - name: uwsgi
+          image: python:3.10.1-slim
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            exec:
+              command:
+                - uwsgi-is-ready
+                - --stats-socket
+                - /tmp/uwsgi-stats
+            failureThreshold: 2
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            successThreshold: 1
+            timeoutSeconds: 1
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: uwsgi-test
+  namespace: uwsgi
+spec:
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+  selector:
+    name: uwsgi-test
