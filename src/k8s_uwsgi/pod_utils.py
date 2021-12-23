@@ -14,12 +14,9 @@
 
 import json
 import logging
-from logging.handlers import SysLogHandler
 import socket
-import sys
 import os
 import time
-import argparse
 from datetime import datetime
 
 BUFF_SIZE = 8192
@@ -32,15 +29,15 @@ DEFAULT_SHUTDOWN_TIMEOUT = 60
 def read_uwsgi_socket(stats_socket):
     # 1 check if the socket file exists (indicates that uwsgi is not running)
     if not os.path.exists(stats_socket):
-        logging.fatal("Unable to connect to the uwsgi stats socket", file=sys.stderr)
+        logging.fatal("Unable to connect to the uwsgi stats socket")
         exit(1)
 
     # 2 connect to the socket
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     try:
         sock.connect(stats_socket)
-    except (ConnectionRefusedError):
-        logging.fatal("Connection refused: uwsgi process is not responding", file=sys.stderr)
+    except ConnectionRefusedError:
+        logging.fatal("Connection refused: uwsgi process is not responding")
         exit(1)
 
     # 3 loads json from the socket
@@ -77,7 +74,7 @@ def graceful_shutdown(stats_socket, shutdown_file, max_wait, uwsgi_fifo=None):
 
     def shutdown_log(message):
         with open(shutdown_file) as f:
-            f.write("{1}: {2}".format(datetime.now().strftime("%Y-%m-%d %H:%M:%S"), message))
+            f.write("{}: {}".format(datetime.now().strftime("%Y-%m-%d %H:%M:%S"), message))
 
     # Creates the shutdown file so readiness checks fail
     logging.info("Pod shutdown started")
@@ -88,7 +85,7 @@ def graceful_shutdown(stats_socket, shutdown_file, max_wait, uwsgi_fifo=None):
         wait = wait - 1
         logging.info("{} requests in flight. Delaying shutdown ({})".format(in_flight, wait))
         time.sleep(1)
-        in_flight = requests_in_flight()
+        in_flight = requests_in_flight(stats_socket)
 
     logging.info("Graceful shutdown finished with %d seconds left", wait)
     shutdown_log("Shutdown complete")
@@ -111,18 +108,17 @@ def check_ready(stats_socket, queue_threshold, shutdown_file):
         max_queue = int(os.environ.get('UWSGI_LISTEN', -1))
         if max_queue == -1:
             max_queue = int(stats['sockets'][0]['max_queue'])
+        queue_limit = max_queue * queue_threshold
+        if shutdown_in_progress:
+            logging.warning("Not ready: Shutdown in progress. Queued requests: %d | Limit = %d", queue, queue_limit)
+            return False
+
+        if queue > queue_limit:
+            logging.warning("Not ready: Queued requests: %d | Limit = %d", queue, queue_limit)
+            return False
+        else:
+            logging.warning("Ready: Queued requests: %d | Limit = %d", queue, queue_limit)
+            return True
     except (KeyError, IndexError, TypeError) as e:
-        logging.fatal("Error loading uwsgi stats data. Error: {}".format(str(e)), file=sys.stderr)
+        logging.fatal("Error loading uwsgi stats data. Error: {}".format(str(e)))
         exit(1)
-
-    queue_limit = max_queue * queue_threshold
-    if shutdown_in_progress:
-        logging.warning("Not ready: Shutdown in progress. Queued requests: %d | Limit = %d", queue, queue_limit)
-        return False
-
-    if queue > queue_limit:
-        logging.warning("Not ready: Queued requests: %d | Limit = %d", queue, queue_limit)
-        return False
-    else:
-        logging.warning("Ready: Queued requests: %d | Limit = %d", queue, queue_limit)
-        return True
