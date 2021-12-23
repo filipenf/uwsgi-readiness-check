@@ -4,6 +4,7 @@
 import requests
 import threading
 
+
 def request_loop():
     while True:
         requests.get('http://uwsgi-test:8080/')
