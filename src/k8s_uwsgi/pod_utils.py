@@ -41,14 +41,14 @@ def read_uwsgi_socket(stats_socket):
         exit(1)
 
     # 3 loads json from the socket
-    data = b''
+    data = b""
     while True:
         msg = sock.recv(BUFF_SIZE)
         data += msg
         if len(msg) < BUFF_SIZE:
             break
 
-    return json.loads(data.decode('utf-8'))
+    return json.loads(data.decode("utf-8"))
 
 
 def requests_in_flight(stats_socket):
@@ -56,9 +56,15 @@ def requests_in_flight(stats_socket):
     Returns the number of requests being processed + queued
     """
     stats = read_uwsgi_socket(stats_socket)
-    queued = int(stats['sockets'][0]['queue'])
+    queued = int(stats["sockets"][0]["queue"])
     return (
-        sum([core.get('in_request', 0) for worker in stats["workers"] for core in worker['cores']])
+        sum(
+            [
+                core.get("in_request", 0)
+                for worker in stats["workers"]
+                for core in worker["cores"]
+            ]
+        )
         + queued
     )
 
@@ -74,7 +80,9 @@ def graceful_shutdown(stats_socket, shutdown_file, max_wait, uwsgi_fifo=None):
 
     def shutdown_log(message):
         with open(shutdown_file) as f:
-            f.write("{}: {}".format(datetime.now().strftime("%Y-%m-%d %H:%M:%S"), message))
+            f.write(
+                "{}: {}".format(datetime.now().strftime("%Y-%m-%d %H:%M:%S"), message)
+            )
 
     # Creates the shutdown file so readiness checks fail
     logging.info("Pod shutdown started")
@@ -83,7 +91,9 @@ def graceful_shutdown(stats_socket, shutdown_file, max_wait, uwsgi_fifo=None):
     in_flight = requests_in_flight(stats_socket)
     while wait > 0 and in_flight > 0:
         wait = wait - 1
-        logging.info("{} requests in flight. Delaying shutdown ({})".format(in_flight, wait))
+        logging.info(
+            "{} requests in flight. Delaying shutdown ({})".format(in_flight, wait)
+        )
         time.sleep(1)
         in_flight = requests_in_flight(stats_socket)
 
@@ -91,8 +101,8 @@ def graceful_shutdown(stats_socket, shutdown_file, max_wait, uwsgi_fifo=None):
     shutdown_log("Shutdown complete")
 
     if uwsgi_fifo is not None:
-        with open(UWSGI_MASTER_FIFO, 'w') as fifo:
-            fifo.write('q')
+        with open(UWSGI_MASTER_FIFO, "w") as fifo:
+            fifo.write("q")
             fifo.flush()
 
     return wait
@@ -104,20 +114,28 @@ def check_ready(stats_socket, queue_threshold, shutdown_file):
     stats = read_uwsgi_socket(stats_socket)
     # check and compare queue size
     try:
-        queue = int(stats['sockets'][0]['queue'])
-        max_queue = int(os.environ.get('UWSGI_LISTEN', -1))
+        queue = int(stats["sockets"][0]["queue"])
+        max_queue = int(os.environ.get("UWSGI_LISTEN", -1))
         if max_queue == -1:
-            max_queue = int(stats['sockets'][0]['max_queue'])
+            max_queue = int(stats["sockets"][0]["max_queue"])
         queue_limit = max_queue * queue_threshold
         if shutdown_in_progress:
-            logging.warning("Not ready: Shutdown in progress. Queued requests: %d | Limit = %d", queue, queue_limit)
+            logging.warning(
+                "Not ready: Shutdown in progress. Queued requests: %d | Limit = %d",
+                queue,
+                queue_limit,
+            )
             return False
 
         if queue > queue_limit:
-            logging.warning("Not ready: Queued requests: %d | Limit = %d", queue, queue_limit)
+            logging.warning(
+                "Not ready: Queued requests: %d | Limit = %d", queue, queue_limit
+            )
             return False
         else:
-            logging.warning("Ready: Queued requests: %d | Limit = %d", queue, queue_limit)
+            logging.warning(
+                "Ready: Queued requests: %d | Limit = %d", queue, queue_limit
+            )
             return True
     except (KeyError, IndexError, TypeError) as e:
         logging.fatal("Error loading uwsgi stats data. Error: {}".format(str(e)))
