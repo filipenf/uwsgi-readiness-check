@@ -12,7 +12,7 @@ def request_loop():
 
 if __name__ == "__main__":
     threads = []
-    for i in range(6):
+    for i in range(20):
         t = threading.Thread(target=request_loop)
         threads.append(t)
         t.start()
