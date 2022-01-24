@@ -41,6 +41,7 @@ def is_ready():
     parser.add_argument(
         "--queue-threshold",
         help="uwsgi queue threshold (a value between 0 and 1). Default: 0.5",
+        type=float,
         default=0.5,
     )
     parser.add_argument(
