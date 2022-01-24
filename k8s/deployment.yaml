@@ -57,6 +57,8 @@ spec:
                 - uwsgi-is-ready
                 - --stats-socket
                 - /tmp/uwsgi-stats
+                - queue-threshold
+                - '0.6'
             failureThreshold: 2
             initialDelaySeconds: 5
             periodSeconds: 5
