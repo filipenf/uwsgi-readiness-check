@@ -118,7 +118,7 @@ def check_ready(stats_socket, queue_threshold, shutdown_file):
         max_queue = int(os.environ.get("UWSGI_LISTEN", -1))
         if max_queue == -1:
             max_queue = int(stats["sockets"][0]["max_queue"])
-        queue_limit = max_queue * queue_threshold
+        queue_limit = max_queue * float(queue_threshold)
         if shutdown_in_progress:
             logging.warning(
                 "Not ready: Shutdown in progress. Queued requests: %d | Limit = %d",
